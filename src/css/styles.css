@@ -1,0 +1,55 @@
+.actions {
+	margin-right: 5px;
+}
+
+#main-comments {
+	height: 60%;
+}
+
+#comment-container {
+	overflow-y: scroll;
+	height: 100%;
+}
+
+#main-header {
+	position: fixed;
+	top: 0px;
+	height: 70px;
+	width: 100%;
+	z-index: 1000;
+	background-color: cyan;
+	display: flex;
+	align-items: center;
+}
+
+#profile-info {
+	margin-left: auto;
+}
+
+#user-list {
+	overflow: auto;
+	height: 100%;
+}
+
+span#rooms-link {
+	font-size: .8em;
+	margin-top: 50px;
+	margin-right: 10px;
+}
+
+h1#room-header {
+	margin-left: 15px;
+}
+
+h1#title-header {
+	margin-top: 12px;
+	margin-left: 15px;
+}
+
+h2#room-name {
+	margin-left: 15px;
+}
+
+body {
+	margin-top: 70px;
+}
