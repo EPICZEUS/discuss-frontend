@@ -31,6 +31,10 @@
 	height: 100%;
 }
 
+#leave {
+	width: 100%;
+}
+
 span#rooms-link {
 	font-size: .8em;
 	margin-top: 50px;

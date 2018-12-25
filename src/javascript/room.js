@@ -103,40 +103,42 @@ document.addEventListener("DOMContentLoaded", async () => {
 	console.log(room);
 	document.querySelector("#room-name").textContent = room.name;
 
+	const container = document.querySelector("#main-container");
 	const comments = document.querySelector("#comment-container");
-	const commentForm = document.querySelector("#comment-form");
+	// const commentForm = document.querySelector("#comment-form");
 	const users = document.querySelector("#user-list");
 
 	users.innerHTML += room.users.sort((a, b) => a.username.localeCompare(b.username)).map(renderUser).join("\n");
 
-	comments.innerHTML = (await Promise.all(room.messages.map(renderComment))).join("\n");
+	comments.innerHTML = (await Promise.all(room.messages.sort((a, b) => a.created_at.localeCompare(b.created_at)).map(renderComment))).join("\n");
 	comments.scrollTop = comments.scrollHeight;
 
-	commentForm.addEventListener('submit', e => {
+	container.addEventListener('submit', async e => {
 		e.preventDefault();
-		const content = e.target.querySelector("#content-input").value;
-		ws.send(JSON.stringify({
-			command: "message",
-			identifier: JSON.stringify({
-				channel: "ChatChannel",
-				id: localStorage.current_room
-			}),
-			data: JSON.stringify({
-				action: "message",
-				content,
-				user_id: localStorage.user_id
-			})
-		}));
 
-		e.target.reset();
-	});
+		if (e.target.dataset.action === "send"){
+			const content = e.target.querySelector("#content-input").value;
 
-	comments.addEventListener('keydown', async e => {
-		if (e.keyCode === 13 && e.target.dataset.action === "edit-commit") {
+			ws.send(JSON.stringify({
+				command: "message",
+				identifier: JSON.stringify({
+					channel: "ChatChannel",
+					id: localStorage.current_room
+				}),
+				data: JSON.stringify({
+					action: "message",
+					content,
+					user_id: localStorage.user_id
+				})
+			}));
+
+			e.target.reset();
+		} else if (e.target.dataset.action === "edit") {
 			const msg = await fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`).then(r => r.json());
 			const content = comments.querySelector("#content-" + e.target.dataset.id);
+			const value = comments.querySelector("#content-input-" + e.target.dataset.id).value;
 
-			if (msg.content === e.target.value) {
+			if (msg.content === value) {
 				content.textContent = msg.content;
 				return;
 			}
@@ -150,19 +152,21 @@ document.addEventListener("DOMContentLoaded", async () => {
 				data: JSON.stringify({
 					action: "edit",
 					id: e.target.dataset.id,
-					content: e.target.value
+					content: value
 				})
 			}))
 		}
-	})
+	});
 
 	comments.addEventListener('click', e => {
 		if (e.target.dataset.action === "edit") {
 			const content = comments.querySelector("#content-" + e.target.dataset.id);
 			content.innerHTML = `
-			<div class="ui input">
-				<input type="text" data-action="edit-commit" data-id="${e.target.dataset.id}" value="${content.textContent}"></input>
-			</div>
+			<form class="ui form" data-action="edit" data-id="${e.target.dataset.id}">
+				<div class="ui input edit">
+					<input type="text" id="content-input-${e.target.dataset.id}" value="${content.textContent}"></input>
+				</div>
+			</form>
 			`
 		} else if (e.target.dataset.action === "delete") {
 			if (confirm("Are you sure?")) {
