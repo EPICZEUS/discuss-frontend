@@ -2,6 +2,14 @@
 	margin-right: 5px;
 }
 
+.edit {
+	margin-right: 5px;
+}
+
+.room-action {
+	width: 100%;
+}
+
 #main-comments {
 	height: 60%;
 }
@@ -31,7 +39,11 @@
 	height: 100%;
 }
 
-#leave {
+#user-rooms {
+	margin-top: 1px;
+}
+
+#send-message {
 	width: 100%;
 }
 

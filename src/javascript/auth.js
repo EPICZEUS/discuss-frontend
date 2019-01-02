@@ -1,5 +1,3 @@
-let user;
-
 if (!Number(localStorage.user_id)) {
 	location = "login.html";
 } else {

@@ -1,6 +1,3 @@
-const ws = new WebSocket("ws://localhost:3000/cable");
-ws.onerror = console.error;
-
 ws.onopen = () => {
 	ws.send(JSON.stringify({
 		command: "subscribe",
@@ -56,6 +53,9 @@ ws.onmessage = async msg => {
 		document.querySelectorAll(".name-" + data.message.user.id).forEach(div => div.textContent = data.message.user.username)
 	} else if (data.message.type === "userLeave") {
 		document.querySelector("#user-" + data.message.user).remove();
+	} else if (data.message.type === "roomDelete") {
+		delete localStorage.current_room;
+		location = "index.html";
 	}
 }
 
@@ -72,33 +72,63 @@ function renderUser(user) {
 	`
 }
 
+function renderError(r) {
+	return `
+		<div class="ui error message" style="margin-top: 10px;">
+			<div class="header">
+				There was a problem with your message
+			</div>
+			<ul class="ui list">
+				${r.messages.map(m => `<li>${m}</li>`)}
+			</ul>
+		</div>
+	`
+}
+
 async function renderComment(msg) {
 	const created = new Date(msg.created_at);
 	const user = msg.user_id ? await fetch("http://localhost:3000/api/v1/users/" + msg.user_id).then(r => r.json()) : msg.user
 
 	return `
-	<div class="comment" id="comment-${msg.id}">
-		<a class="avatar">
-			<img src=${user.img_url}>
-		</a>
-		<div class="content">
-			<a class="author name-${user.id}">${user.username}</a>
-			<div class="metadata">
-				<span class="date">${formatDate(created)}</span>
-			</div>
-			<div class="text" id="content-${msg.id}">${msg.content}</div>
-			<div class="actions">
-			${localStorage.user_id == user.id ? `
-				<a class="edit" data-action="edit" data-id="${msg.id}">Edit</a>
-				<a class="delete" data-action="delete" data-id=${msg.id}>Delete</a>
-			` : ""}
+		<div class="comment" id="comment-${msg.id}">
+			<a class="avatar">
+				<img src=${user.img_url}>
+			</a>
+			<div class="content">
+				<a class="author name-${user.id}">${user.username}</a>
+				<div class="metadata">
+					<span class="date">${formatDate(created)}</span>
+				</div>
+				<div class="text" id="content-${msg.id}">${msg.content}</div>
+				<div class="actions">
+				${localStorage.user_id == user.id ? `
+					<a class="edit" data-action="edit" data-id="${msg.id}">Edit</a>
+					<a class="delete" data-action="delete" data-id=${msg.id}>Delete</a>
+				` : ""}
+				</div>
 			</div>
 		</div>
-	</div>
 	`;
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+	$("#comment-form.ui.form").form({
+		fields: {
+			content: {
+				rules: [
+					{
+						type: "empty",
+						prompt: "Cannot send an empty message"
+					},
+					{
+						type: "maxLength[2000]",
+						prompt: "Message cannot be longer than 2000 characters"
+					}
+				]
+			}
+		}
+	}).submit(e => e.preventDefault());
+
 	const room = await fetch("http://localhost:3000/api/v1/rooms/" + localStorage.current_room).then(r => r.json());
 	console.log(room);
 	document.querySelector("#room-name").textContent = room.name;
@@ -107,54 +137,101 @@ document.addEventListener("DOMContentLoaded", async () => {
 	const comments = document.querySelector("#comment-container");
 	// const commentForm = document.querySelector("#comment-form");
 	const users = document.querySelector("#user-list");
+	const button = document.querySelector("#button");
 
 	users.innerHTML += room.users.sort((a, b) => a.username.localeCompare(b.username)).map(renderUser).join("\n");
 
 	comments.innerHTML = (await Promise.all(room.messages.sort((a, b) => a.created_at.localeCompare(b.created_at)).map(renderComment))).join("\n");
 	comments.scrollTop = comments.scrollHeight;
 
-	container.addEventListener('submit', async e => {
+	console.log(room, room.owner)
+
+	if (room.owner.id === Number(localStorage.user_id)) {
+		button.innerHTML = `
+			<button class="ui negative button room-action" data-action="delete">Delete Room</button>
+		`
+	} else {
+		button.innerHTML = `
+			<button class="ui negative button room-action" data-action="leave">Leave Room</button>
+		`
+	}
+
+	container.addEventListener('submit', e => {
 		e.preventDefault();
 
 		if (e.target.dataset.action === "send"){
 			const content = e.target.querySelector("#content-input").value;
 
-			ws.send(JSON.stringify({
-				command: "message",
-				identifier: JSON.stringify({
-					channel: "ChatChannel",
-					id: localStorage.current_room
-				}),
-				data: JSON.stringify({
-					action: "message",
-					content,
-					user_id: localStorage.user_id
+			// ws.send(JSON.stringify({
+			// 	command: "message",
+			// 	identifier: JSON.stringify({
+			// 		channel: "ChatChannel",
+			// 		id: localStorage.current_room
+			// 	}),
+			// 	data: JSON.stringify({
+			// 		action: "message",
+			// 		content,
+			// 		user_id: localStorage.user_id
+			// 	})
+			// }));
+
+			fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages`, {
+				method: "POST",
+				body: JSON.stringify({
+					user_id: localStorage.user_id,
+					content
 				})
-			}));
+			});
 
 			e.target.reset();
 		} else if (e.target.dataset.action === "edit") {
-			const msg = await fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`).then(r => r.json());
-			const content = comments.querySelector("#content-" + e.target.dataset.id);
-			const value = comments.querySelector("#content-input-" + e.target.dataset.id).value;
+			fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`).then(r => r.json()).then(msg => {
+				const content = comments.querySelector("#content-" + e.target.dataset.id);
+				const value = comments.querySelector("#content-input-" + e.target.dataset.id).value;
 
-			if (msg.content === value) {
-				content.textContent = msg.content;
-				return;
-			}
+				if (msg.content === value) {
+					content.textContent = msg.content;
+					return;
+				}
 
-			ws.send(JSON.stringify({
-				command: "message",
-				identifier: JSON.stringify({
-					channel: "ChatChannel",
-					id: localStorage.current_room
-				}),
-				data: JSON.stringify({
-					action: "edit",
-					id: e.target.dataset.id,
-					content: value
-				})
-			}))
+				// ws.send(JSON.stringify({
+				// 	command: "message",
+				// 	identifier: JSON.stringify({
+				// 		channel: "ChatChannel",
+				// 		id: localStorage.current_room
+				// 	}),
+				// 	data: JSON.stringify({
+				// 		action: "edit",
+				// 		id: e.target.dataset.id,
+				// 		content: value
+				// 	})
+				// }))
+
+				if (value) {
+					fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`, {
+						method: "PATCH",
+						body: JSON.stringify({
+							content: value
+						})
+					}).then(r => r.json()).then(r => {
+						if (r.error) {
+							content.textContent = msg.content;
+						}
+					});
+				} else if (confirm("Are you sure?")) {
+					ws.send(JSON.stringify({
+						command: "message",
+						identifier: JSON.stringify({
+							channel: "ChatChannel",
+							id: localStorage.current_room
+						}),
+						data: JSON.stringify({
+							action: "delete",
+							id: e.target.dataset.id
+						})
+					}));
+				}
+			});
 		}
 	});
 
@@ -163,7 +240,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			const content = comments.querySelector("#content-" + e.target.dataset.id);
 			content.innerHTML = `
 			<form class="ui form" data-action="edit" data-id="${e.target.dataset.id}">
-				<div class="ui input edit">
+				<div class="input edit">
 					<input type="text" id="content-input-${e.target.dataset.id}" value="${content.textContent}"></input>
 				</div>
 			</form>
@@ -185,20 +262,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 		}
 	})
 
-	document.querySelector("#leave").addEventListener("click", e => {
-		console.log("oh hi mark")
-		ws.send(JSON.stringify({
-			command: "message",
-			identifier: JSON.stringify({
-				channel: "ChatChannel",
-				id: localStorage.current_room
-			}),
-			data: JSON.stringify({
-				action: "leave",
-				user_id: localStorage.user_id
-			})
-		}));
+	button.addEventListener("click", e => {
+		if (e.target.dataset.action === "leave") {
+			ws.send(JSON.stringify({
+				command: "message",
+				identifier: JSON.stringify({
+					channel: "ChatChannel",
+					id: localStorage.current_room
+				}),
+				data: JSON.stringify({
+					action: "leave",
+					user_id: localStorage.user_id
+				})
+			}));
+		} else if (e.target.dataset.action === "delete" && confirm("Are you sure?")) {
+			fetch("http://localhost:3000/api/v1/rooms/" + localStorage.current_room, {
+				method: "DELETE"
+			});
+		}
 
+		delete localStorage.current_room;
 		location = "index.html"
 	})
 });

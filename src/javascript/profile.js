@@ -12,31 +12,40 @@ function renderUser(user) {
 			<div class="ui label">
 				Name
 				<div class="detail">
-					${user.first_name} ${user.last_name}
+					${user.first_name ? `${user.first_name} ${user.last_name}` : "N/A"}
 				</div>
 			</div>
 		</div>
 		<br>
 		<button class="ui button" data-action="edit">Edit</button>
 		<button class="ui negative button" data-action="logout">Logout</button>
-		<h2 class="ui header">My Rooms</h2>
-		<ul id="rooms-list">
-		</ul>
+		<div class="ui two column grid container" id="user-rooms">
+			<div class="ui four wide column">
+				<h3 class="ui header">My Rooms</h3>
+				<ul class="ui list" id="my-rooms">
+				</ul>
+			</div>
+			<div class="ui four wide column">
+				<h3 class="ui header">Rooms I'm In</h3>
+				<ul class="ui list" id="rooms-list">
+				</ul>
+			</div>
+		</div
 	`
 }
 
 function renderRoom(room) {
 	return `
 		<li>
-			<h3 class="ui header">${room.name}</h3>
-			<button class="ui button" data-action="join" data-id=${room.id}>Join</button>
+			<h4><a href="room.html" data-action="join" data-id=${room.id}>${room.name}</a></h4>
 		</li>
 	`
 }
 
 function renderPage(profile, user) {
 	profile.innerHTML = renderUser(user);
-	document.querySelector("#rooms-list").innerHTML = user.rooms.map(renderRoom).join("\n");
+	document.querySelector("#my-rooms").innerHTML = user.owned_rooms.map(renderRoom).join("\n");
+	document.querySelector("#rooms-list").innerHTML = user.rooms.filter(r => !user.owned_rooms.some(o => o.id === r.id)).map(renderRoom).join("\n");
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -48,26 +57,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 	profile.addEventListener('click', e => {
 		if (e.target.dataset.action === "join") {
 			localStorage.current_room = e.target.dataset.id;
-
-			location = location.pathname = "room.html";
 		} else if (e.target.dataset.action === "edit") {
 			profile.innerHTML = `
+				<div class="ui negative message" id="errors" style="display: none;">
+				</div>
 				<form class="ui form">
 					<div class="input">
 						<label for="username">Username</label>
-						<input required type="text" name="username" id="username" value="${user.username}">
+						<input type="text" name="username" id="username" value="${user.username}">
 					</div>
 					<div class="input">
 						<label for="password">Password</label>
-						<input required type="password" name="password" id="password">
+						<input type="password" name="password" id="password">
 					</div>
 					<div class="input">
 						<label for="first_name">First Name</label>
-						<input required type="text" name="first_name" id="first_name" value="${user.first_name}">
+						<input type="text" name="first_name" id="first_name" value="${user.first_name}">
 					</div>
 					<div class="input">
 						<label for="last_name">Last Name</label>
-						<input required type="text" name="last_name" id="last_name" value="${user.last_name}">
+						<input type="text" name="last_name" id="last_name" value="${user.last_name}">
 					</div>
 					<div class="input">
 						<label for="img_url">Avatar URL</label>
@@ -85,6 +94,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 			delete localStorage.user_id;
 
 			location = "login.html";
+		} else if (e.target.dataset.action === "close") {
+			const errors = document.querySelector("#errors");
+
+			errors.innerHTML = "";
+			errors.style.display = "none";
 		}
 	});
 
@@ -92,19 +106,39 @@ document.addEventListener("DOMContentLoaded", async () => {
 		e.preventDefault();
 		const data = {};
 
-		data.username = e.target.querySelector("#username").value;
-		data.password = e.target.querySelector("#password").value;
-		data.first_name = e.target.querySelector("#first_name").value;
-		data.last_name = e.target.querySelector("#last_name").value;
-		data.img_url = e.target.querySelector("#img_url").value;
+		const inputs = e.target.querySelectorAll("input");
+
+		for (const input of inputs) {
+			data[input.name] = input.value;
+		}
 
 		fetch("http://localhost:3000/api/v1/users/" + localStorage.user_id, {
 			method: "PATCH",
 			body: JSON.stringify(data)
-		}).then(r => r.json())
-		.then(r => {
-			Object.assign(user, r);
-			renderPage(profile, user);
+		}).then(r => r.json()).then(r => {
+			const errors = document.querySelector("#errors");
+
+			if (r.error) {
+				if (r.status === 403) {
+					errors.innerHTML = `
+						<i class="close icon" data-action="close"></i>
+						<div class="header">Incorrect Password</div>
+					`
+				} else {
+					errors.innerHTML = `
+						<i class="close icon" data-action="close"></i>
+						<div class="header">There was a problem with updating your user</div>
+						<ul class="ui list">
+							${r.messages.map(m => `<li>${m}</li>`).join("\n")}
+						</ul>
+					`
+				}
+
+				errors.style.display = "";
+			} else {
+				Object.assign(user, r);
+				renderPage(profile, user);
+			}
 		})
 	})
 })
