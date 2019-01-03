@@ -1,3 +1,8 @@
+const headers = {
+	'Accept': 'application/json',
+	'Content-Type': 'application/json'
+}
+
 ws.onopen = () => {
 	ws.send(JSON.stringify({
 		command: "subscribe",
@@ -10,9 +15,8 @@ ws.onopen = () => {
 
 ws.onmessage = async msg => {
 	const data = JSON.parse(msg.data)
-	if (data.type !== "ping") {
-		console.log(msg, data)
-	}
+
+	if (data.type === "ping") return;
 
 	if (data.type === "confirm_subscription") {
 		ws.send(JSON.stringify({
@@ -28,13 +32,13 @@ ws.onmessage = async msg => {
 		}));
 	}
 
-	if (!data.message) return
+	if (!data.message) return;
 
-	const comments = document.querySelector("#comment-container")
+	const comments = document.querySelector("#comment-container");
 	
 	if (data.message.type === "message") {
 		comments.innerHTML += await renderComment(data.message.message);
-		comments.scrollTop = comments.scrollHeight
+		comments.scrollTop = comments.scrollHeight;
 	} else if (data.message.type === "userJoin") {
 		const room = await fetch("http://localhost:3000/api/v1/rooms/" + localStorage.current_room).then(r => r.json());
 		const userList = document.querySelector("#user-list");
@@ -42,11 +46,12 @@ ws.onmessage = async msg => {
 		userList.innerHTML = room.users.sort((a, b) => a.username.localeCompare(b.username)).map(renderUser).join("\n");
 	} else if (data.message.type === "messageDelete") {
 		comments.querySelector("#comment-" + data.message.id).remove();
-	} else if (data.message.type === "messageEdit") {
-		comments.querySelector("#content-" + data.message.id).textContent = data.message.content
+	} else if (data.message.type === "messageUpdate") {
+		comments.querySelector("#content-" + data.message.message.id).textContent = data.message.message.content
+		comments.querySelector("#likes-" + data.message.message.id).textContent = data.message.message.likes
 	} else if (data.message.type === "userUpdate") {
 		document.querySelector("#user-" + data.message.user.id).innerHTML = `
-			<img class="ui avatar image" src="${data.message.user.img_url}">
+			<img class="ui bordered avatar image" src="${data.message.user.img_url}">
 			<span>${data.message.user.username}</span>
 		`
 
@@ -56,6 +61,16 @@ ws.onmessage = async msg => {
 	} else if (data.message.type === "roomDelete") {
 		delete localStorage.current_room;
 		location = "index.html";
+	} else if (data.message.type === "presenceUpdate") {
+		const icon = document.querySelector("#icon-" + data.message.user)
+
+		if (icon) {
+			if (data.message.status === "online") {
+				icon.className = "user icon"
+			} else {
+				icon.className = "user outline icon"
+			}
+		}
 	}
 }
 
@@ -66,7 +81,8 @@ function formatDate(date) {
 function renderUser(user) {
 	return `
 		<div id="user-${user.id}">
-			<img class="ui avatar image" src="${user.img_url}">
+			<img class="ui bordered avatar image" src="${user.img_url}">
+			<i class="user ${user.current_room === localStorage.current_room && user.status === "online" ? "outline" : ""} icon" id="icon-${user.id}"></i>
 			<span>${user.username}</span>
 		</div>
 	`
@@ -97,14 +113,18 @@ async function renderComment(msg) {
 			<div class="content">
 				<a class="author name-${user.id}">${user.username}</a>
 				<div class="metadata">
-					<span class="date">${formatDate(created)}</span>
+					<div class="date">${formatDate(created)}</div>
+			        <div class="ui mini right label rating">
+						<i class="black thumbs up icon"></i>
+						<span id="likes-${msg.id}">${msg.likes || "None"}</span> Likes
+			        </div>
 				</div>
-				<div class="text" id="content-${msg.id}">${msg.content}</div>
+				<div class="text" id="content-${msg.id}">${msg.content.replace(/https?:\/\/([^:\/\s]+)(www\.)?([\w\-\.]+[^#?\s]+).*?(#[\w\-]+)?\b/, '<a href="$&">$&</a>')}</div>
 				<div class="actions">
 				${localStorage.user_id == user.id ? `
 					<a class="edit" data-action="edit" data-id="${msg.id}">Edit</a>
 					<a class="delete" data-action="delete" data-id=${msg.id}>Delete</a>
-				` : ""}
+				` : `<a class="like" data-action="like" data-id=${msg.id}>Like</a>`}
 				</div>
 			</div>
 		</div>
@@ -144,23 +164,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 	comments.innerHTML = (await Promise.all(room.messages.sort((a, b) => a.created_at.localeCompare(b.created_at)).map(renderComment))).join("\n");
 	comments.scrollTop = comments.scrollHeight;
 
-	console.log(room, room.owner)
+	button.innerHTML = `
+		<button class="ui negative button room-action" data-action=${room.owner.id === Number(localStorage.user_id) ? '"delete">Delete' : '"leave">Leave'} Room</button>
+	`
 
-	if (room.owner.id === Number(localStorage.user_id)) {
-		button.innerHTML = `
-			<button class="ui negative button room-action" data-action="delete">Delete Room</button>
-		`
-	} else {
-		button.innerHTML = `
-			<button class="ui negative button room-action" data-action="leave">Leave Room</button>
-		`
-	}
-
-	container.addEventListener('submit', e => {
+	container.addEventListener('submit', async e => {
 		e.preventDefault();
 
 		if (e.target.dataset.action === "send"){
-			const content = e.target.querySelector("#content-input").value;
+			let content = e.target.querySelector("#content-input").value;
+
+			if (/^\/giphy/.test(content)) {
+				let q = content.split(/ +/).slice(1).filter(e => e).join(" ");
+
+				const {data: [ giphy ]} = await fetch("http://api.giphy.com/v1/gifs/search?api_key=JGBJ8ev5KS5tKw6AgUszgqOy1KT68lJf&q=" + q).then(r => r.json())
+
+				content = giphy.url
+			}
 
 			// ws.send(JSON.stringify({
 			// 	command: "message",
@@ -177,6 +197,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 			fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages`, {
 				method: "POST",
+				headers,
 				body: JSON.stringify({
 					user_id: localStorage.user_id,
 					content
@@ -210,6 +231,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 				if (value) {
 					fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`, {
 						method: "PATCH",
+						headers,
 						body: JSON.stringify({
 							content: value
 						})
@@ -259,6 +281,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 					})
 				}));
 			}
+		} else if (e.target.dataset.action === "like") {
+			const likeSpan = document.querySelector("#likes-" + e.target.dataset.id);
+			const likes = Number(likeSpan.textContent) + 1;
+
+			fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`, {
+				method: "PATCH",
+				headers,
+				body: JSON.stringify({
+					likes
+				})
+			})
 		}
 	})
 
@@ -285,3 +318,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 		location = "index.html"
 	})
 });
+
+window.addEventListener("beforeunload", () => {
+	ws.send(JSON.stringify({
+		command: "message",
+		identifier: JSON.stringify({
+			channel: "ChatChannel",
+			id: localStorage.current_room
+		}),
+		data: JSON.stringify({
+			action: "exit",
+			user_id: localStorage.user_id
+		})
+	}))
+})

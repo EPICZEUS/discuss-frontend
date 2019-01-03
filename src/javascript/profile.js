@@ -17,8 +17,10 @@ function renderUser(user) {
 			</div>
 		</div>
 		<br>
-		<button class="ui button" data-action="edit">Edit</button>
-		<button class="ui negative button" data-action="logout">Logout</button>
+		<div class="ui buttons">
+			<button class="ui button" data-action="edit">Edit</button>
+			<button class="ui negative button" data-action="logout">Logout</button>
+		</div>
 		<div class="ui two column grid container" id="user-rooms">
 			<div class="ui four wide column">
 				<h3 class="ui header">My Rooms</h3>
@@ -109,11 +111,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 		const inputs = e.target.querySelectorAll("input");
 
 		for (const input of inputs) {
-			data[input.name] = input.value;
+			if (input.name !== "password") data[input.name] = input.value;
 		}
 
 		fetch("http://localhost:3000/api/v1/users/" + localStorage.user_id, {
 			method: "PATCH",
+			headers: {
+				'Authorization': document.querySelector("#password").value,
+				'Accept': 'application/json',
+				'Content-Type': 'application/json'
+			},
 			body: JSON.stringify(data)
 		}).then(r => r.json()).then(r => {
 			const errors = document.querySelector("#errors");
@@ -138,6 +145,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			} else {
 				Object.assign(user, r);
 				renderPage(profile, user);
+				document.querySelector("#header-avatar").src = user.img_url
 			}
 		})
 	})

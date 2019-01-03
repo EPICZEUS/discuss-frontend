@@ -16,8 +16,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		fetch("http://localhost:3000/api/v1/login", {
 			headers: {
-				username,
-				password
+				'Authorization': `${username}:${password}`
 			}
 		}).then(r => r.json()).then(r => {
 			if (r.status === 200) {

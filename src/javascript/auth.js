@@ -7,7 +7,7 @@ if (!Number(localStorage.user_id)) {
 			document.querySelector("#profile-info").innerHTML += `
 				<span id="rooms-link"><a href="index.html">Rooms</a></span>
 				<a href="profile.html">
-					<img class="ui avatar image" src="${r.img_url}">
+					<img class="ui avatar image" src="${r.img_url}" id="header-avatar">
 				</a>
 			`
 		});

@@ -51,6 +51,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 		e.preventDefault();
 		fetch("http://localhost:3000/api/v1/rooms", {
 			method: "POST",
+			headers: {
+				'Accept': 'application/json',
+				'Content-Type': 'application/json'
+			},
 			body: JSON.stringify({
 				name: form.querySelector("input").value,
 				owner_id: localStorage.user_id

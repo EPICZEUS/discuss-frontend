@@ -7,12 +7,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
 		const inputs = e.target.querySelectorAll("input");
 
-		for (const input of inputs) {
-			data[input.name] = input.value;
-		}
+		for (const input of inputs) data[input.name] = input.value;
+
+		console.log(data)
 
 		fetch("http://localhost:3000/api/v1/users", {
 			method: "POST",
+			headers: {
+				'Accept': 'application/json',
+				'Content-Type': 'application/json'
+			},
 			body: JSON.stringify(data)
 		}).then(r => r.json()).then(r => {
 			if (r.error) {
