@@ -47,8 +47,9 @@ ws.onmessage = async msg => {
 	} else if (data.message.type === "messageDelete") {
 		comments.querySelector("#comment-" + data.message.id).remove();
 	} else if (data.message.type === "messageUpdate") {
-		comments.querySelector("#content-" + data.message.message.id).textContent = data.message.message.content
+		comments.querySelector("#content-" + data.message.message.id).innerHTML = data.message.message.content.replace(/https?:\/\/([^:\/\s]+)(www\.)?([\w\-\.]+[^#?\s]+).*?(#[\w\-]+)?\b/g, '<a href="$&">$&</a>')
 		comments.querySelector("#likes-" + data.message.message.id).textContent = data.message.message.likes
+		comments.querySelector("#like-word-" + data.message.message.id).textContent = data.message.message.likes === 1 ? "Like" : "Likes"
 	} else if (data.message.type === "userUpdate") {
 		document.querySelector("#user-" + data.message.user.id).innerHTML = `
 			<img class="ui bordered avatar image" src="${data.message.user.img_url}">
@@ -116,10 +117,10 @@ async function renderComment(msg) {
 					<div class="date">${formatDate(created)}</div>
 			        <div class="ui mini right label rating">
 						<i class="black thumbs up icon"></i>
-						<span id="likes-${msg.id}">${msg.likes || "None"}</span> Likes
+						<span id="likes-${msg.id}">${msg.likes || "No"}</span> <span id="like-word-${msg.id}">Like${msg.likes !== 1 ? "s" : ""}</span>
 			        </div>
 				</div>
-				<div class="text" id="content-${msg.id}">${msg.content.replace(/https?:\/\/([^:\/\s]+)(www\.)?([\w\-\.]+[^#?\s]+).*?(#[\w\-]+)?\b/, '<a href="$&">$&</a>')}</div>
+				<div class="text" id="content-${msg.id}">${msg.content.replace(/https?:\/\/([^:\/\s]+)(www\.)?([\w\-\.]+[^#?\s]+).*?(#[\w\-]+)?\b/g, '<a href="$&">$&</a>')}</div>
 				<div class="actions">
 				${localStorage.user_id == user.id ? `
 					<a class="edit" data-action="edit" data-id="${msg.id}">Edit</a>
@@ -210,8 +211,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 				const content = comments.querySelector("#content-" + e.target.dataset.id);
 				const value = comments.querySelector("#content-input-" + e.target.dataset.id).value;
 
-				if (msg.content === value) {
-					content.textContent = msg.content;
+				if (msg.content.replace(/https?:\/\/([^:\/\s]+)(www\.)?([\w\-\.]+[^#?\s]+).*?(#[\w\-]+)?\b/g, '<a href="$&">$&</a>') === value) {
+					content.innerHTLM = msg.content.replace(/https?:\/\/([^:\/\s]+)(www\.)?([\w\-\.]+[^#?\s]+).*?(#[\w\-]+)?\b/g, '<a href="$&">$&</a>');
 					return;
 				}
 
@@ -283,7 +284,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			}
 		} else if (e.target.dataset.action === "like") {
 			const likeSpan = document.querySelector("#likes-" + e.target.dataset.id);
-			const likes = Number(likeSpan.textContent) + 1;
+			const likes = (Number(likeSpan.textContent) || 0) + 1;
 
 			fetch(`http://localhost:3000/api/v1/rooms/${localStorage.current_room}/messages/${e.target.dataset.id}`, {
 				method: "PATCH",
