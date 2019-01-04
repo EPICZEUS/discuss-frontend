@@ -126,7 +126,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 			const errors = document.querySelector("#errors");
 
 			if (r.error) {
-				if (r.status === 403) {
+				if (r.status === 401) {
 					errors.innerHTML = `
 						<i class="close icon" data-action="close"></i>
 						<div class="header">Incorrect Password</div>

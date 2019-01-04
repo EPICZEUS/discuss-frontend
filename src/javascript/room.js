@@ -53,10 +53,12 @@ ws.onmessage = async msg => {
 	} else if (data.message.type === "userUpdate") {
 		document.querySelector("#user-" + data.message.user.id).innerHTML = `
 			<img class="ui bordered avatar image" src="${data.message.user.img_url}">
+			<i class="${data.message.user.current_room === localStorage.current_room && data.message.user.status === "online" ? "user icon" : "user outline icon"}" id="icon-${data.message.user.id}"></i>
 			<span>${data.message.user.username}</span>
 		`
 
-		document.querySelectorAll(".name-" + data.message.user.id).forEach(div => div.textContent = data.message.user.username)
+		document.querySelectorAll(".name-" + data.message.user.id).forEach(div => div.textContent = data.message.user.username);
+		document.querySelectorAll(".user-avatar-" + data.message.user.id).forEach(div => div.src = data.message.user.img_url);
 	} else if (data.message.type === "userLeave") {
 		document.querySelector("#user-" + data.message.user).remove();
 	} else if (data.message.type === "roomDelete") {
@@ -109,7 +111,7 @@ async function renderComment(msg) {
 	return `
 		<div class="comment" id="comment-${msg.id}">
 			<a class="avatar">
-				<img src=${user.img_url}>
+				<img class="user-avatar-${user.id}" src=${user.img_url}>
 			</a>
 			<div class="content">
 				<a class="author name-${user.id}">${user.username}</a>
