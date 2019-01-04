@@ -115,7 +115,7 @@ async function renderComment(msg) {
 				<a class="author name-${user.id}">${user.username}</a>
 				<div class="metadata">
 					<div class="date">${formatDate(created)}</div>
-			        <div class="ui mini right label rating">
+			        <div class="rating">
 						<i class="black thumbs up icon"></i>
 						<span id="likes-${msg.id}">${msg.likes || "No"}</span> <span id="like-word-${msg.id}">Like${msg.likes !== 1 ? "s" : ""}</span>
 			        </div>
@@ -151,7 +151,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 	}).submit(e => e.preventDefault());
 
 	const room = await fetch("http://localhost:3000/api/v1/rooms/" + localStorage.current_room).then(r => r.json());
-	console.log(room);
+
 	document.querySelector("#room-name").textContent = room.name;
 
 	const container = document.querySelector("#main-container");
@@ -176,11 +176,16 @@ document.addEventListener("DOMContentLoaded", async () => {
 			let content = e.target.querySelector("#content-input").value;
 
 			if (/^\/giphy/.test(content)) {
-				let q = content.split(/ +/).slice(1).filter(e => e).join(" ");
+				let q = content.split(/ +/).slice(1).join(" ");
 
-				const {data: [ giphy ]} = await fetch("http://api.giphy.com/v1/gifs/search?api_key=JGBJ8ev5KS5tKw6AgUszgqOy1KT68lJf&q=" + q).then(r => r.json())
 
-				content = giphy.url
+				if (q.trim()) {
+					const { data: [ giphy ]} = await fetch("http://api.giphy.com/v1/gifs/search?api_key=JGBJ8ev5KS5tKw6AgUszgqOy1KT68lJf&q=" + q).then(r => r.json())
+
+					content = giphy.url
+				} else {
+					return e.target.reset();
+				}
 			}
 
 			// ws.send(JSON.stringify({
